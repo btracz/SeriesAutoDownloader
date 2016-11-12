@@ -10,17 +10,23 @@ var http = require('http');
 var fs = require("fs");
 var path = require("path");
 var config = JSON.parse(fs.readFileSync(path.join(__dirname, '../conf.json'), 'utf8'));
+var downloader = require("../src/downloader");
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '3000');
+var port = normalizePort(process.env.PORT || '3089');
 app.set('port', port);
 
 // Création de la variable
 process.env.THEPIRATEBAY_DEFAULT_ENDPOINT = config.piratebayEndpoint;
 console.log("TPB Endpoint : " + process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
+
+// Démarrage des tâches planifiées
+downloader.startEpisodeFinder();
+downloader.startTorrentWatcher();
+downloader.startSubFinder();
 
 /**
  * Create HTTP server.
