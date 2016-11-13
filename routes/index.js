@@ -4,7 +4,13 @@ var downloader = require("../src/downloader");
 var Q = require("q");
 
 router.get('/', function (req, res) {
-    res.send(JSON.stringify(downloader.getEpisodes(), null, 4));
+    res.render('index',
+        {
+            title: "SeriesAutoDownloader",
+            episodes: downloader.getEpisodes(),
+            providedEpisodes: downloader.getProvidedEpisodes(),
+            series: downloader.getSeries()
+        });
 });
 
 router.get('/search', function (req, res) {
@@ -26,6 +32,16 @@ router.get('/torrent/:id', function (req, res) {
             res.send(JSON.stringify(status, null, 4));
         }
     );
+});
+
+router.delete('/series/:id', function (req, res) {
+    downloader.deleteSeries(req.params.id);
+    res.sendStatus(200);
+});
+
+router.delete('/provided-episode/:id', function (req, res) {
+    downloader.deleteProvidedEpisode(req.params.id);
+    res.sendStatus(200);
 });
 
 module.exports = router;

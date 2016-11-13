@@ -1,11 +1,89 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
-  <body>
-    <h1><%= title %></h1>
-    <p><%= JSON.stringify(episodes, null, 4) %></p>
-  </body>
+<head>
+  <title><%= title %></title>
+  <link rel='stylesheet' href='/css/style.css'/>
+  <link rel='stylesheet' href='/css/bootstrap.min.css'/>
+  <script src="/js/jquery.min.js"></script>
+  <script src="/js/bootstrap.min.js"></script>
+</head>
+<style>
+  td {
+    padding: 5px;
+  }
+</style>
+<body>
+<h1><%= title %></h1>
+
+<h2>Séries surveillées</h2>
+<% if (series && series.length > 0) {
+for (var k = 0; k < series.length; k++) { %>
+<span>
+    <b><%= series[k].name %></b><br/>
+  </span>
+<% }
+} else { %>
+<p>Pas de série surveillée.</p>
+<% } %>
+
+<h2>Episodes en cours de mise à disposition</h2>
+<% if (episodes && episodes.length > 0) { %>
+<table class="table-striped">
+  <tr>
+    <th>Série</th>
+    <th>Episode</th>
+    <th>Torrent trouvé ?</th>
+    <th>Torrent ajouté ?</th>
+    <th>Téléchargement terminé ?</th>
+    <th>Sous-titres trouvés ?</th>
+  </tr>
+  <% for (var i = 0; i < episodes.length; i++) { %>
+  <tr>
+    <td><%= episodes[i].series %></td>
+    <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %></td>
+    <td><%= episodes[i].magnetLink ? '✓' : '' %></td>
+    <td><%= episodes[i].transmissionId ? '✓' : '' %></td>
+    <td><%= episodes[i].videoPath ? '✓' : '' %></td>
+    <td></td>
+  </tr>
+  <% } %>
+</table>
+<% } else { %>
+<p>Pas d'épisode à mettre à disposition.</p>
+<% } %>
+<h2>Episodes disponibles</h2>
+<% if (providedEpisodes && providedEpisodes.length > 0) { %>
+<table class="table-striped">
+  <tr>
+    <th>Série</th>
+    <th>Episode</th>
+    <th></th>
+  </tr>
+  <% for (var j = 0; j < providedEpisodes.length; j++) { %>
+  <tr>
+    <td><%= providedEpisodes[j].series %></td>
+    <td>S<%= providedEpisodes[j].season %>E<%= providedEpisodes[j].number %><br/><%= providedEpisodes[j].name %></td>
+    <td>
+      <button type="button" class="btn btn-default archiveBtn" ep-id="<%= j %>">Archivé ?</button>
+    </td>
+  </tr>
+  <% } %>
+</table>
+<% } else { %>
+<p>Pas d'épisode disponible.</p>
+<% } %>
+<script>
+  $(".archiveBtn").click(function () {
+    var epId = $(this).attr('ep-id');
+    $.ajax({
+      method: "DELETE",
+      url: "/provided-episode/" + epId
+    }).done(function () {
+      location.reload();
+    }).fail(function (jqXHR, textStatus) {
+      alert("Request failed: " + textStatus);
+    });
+  });
+</script>
+</body>
 </html>

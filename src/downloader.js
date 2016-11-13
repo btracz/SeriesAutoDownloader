@@ -10,6 +10,7 @@ var scheduler = require("./scheduler");
 var config = JSON.parse(fs.readFileSync(path.join(__dirname, '../conf.json'), 'utf8'));
 var series = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/series.json'), 'utf8'));
 var episodes = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/airedEpisodesToProvide.json'), 'utf8'));
+var providedEpisodes = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/providedEpisodes.json'), 'utf8'));
 var transmission = new Transmission(config.transmission);
 const OpenSub = require('opensubtitles-api');
 const OpenSubtitles = new OpenSub({
@@ -31,11 +32,33 @@ module.exports = {
     getTorrentsStatus: getTorrentsStatus,
     getTorrentStatus: getTorrentStatus,
     getEpisodes: getEpisodes,
+    getProvidedEpisodes: getProvidedEpisodes,
+    getSeries: getSeries,
+    deleteSeries: deleteSeries,
+    deleteProvidedEpisode: deleteProvidedEpisode,
     findAndDownloadNewEpisodes: findAndDownloadNewEpisodes
 };
 
 function getEpisodes() {
     return episodes;
+}
+
+function getProvidedEpisodes() {
+    return providedEpisodes;
+}
+
+function deleteProvidedEpisode(index) {
+    providedEpisodes.splice(index, 1);
+    saveEpisodes();
+}
+
+function getSeries() {
+    return series;
+}
+
+function deleteSeries(index) {
+    series.splice(index, 1);
+    saveSeries();
 }
 
 /* ##### TACHES #### */
@@ -47,13 +70,13 @@ function startEpisodeFinder() {
 
 function startTorrentWatcher() {
     console.log("lancement de la surveillance et classification des torrents");
-    scheduler.createJob("torrentWatcher", "*/2 * * * *", watchTorrents);
+    scheduler.createJob("torrentWatcher", "*/10 * * * *", watchTorrents);
     scheduler.startTask("torrentWatcher");
 }
 
 function startSubFinder() {
     console.log("lancement de la recherche des sous-titres");
-    scheduler.createJob("subFinder", "1-59/2 * * * *", findEpisodeSubtitles);
+    scheduler.createJob("subFinder", "5-55/10 * * * *", findEpisodeSubtitles);
     scheduler.startTask("subFinder");
 }
 
@@ -223,6 +246,7 @@ function findEpisodeSubtitles() {
                             return b - a;
                         });
                         toDestroyIndexes.forEach((index) => {
+                            providedEpisodes.push(episodes[index]);
                             episodes.splice(index, 1);
                         });
 
@@ -450,4 +474,9 @@ function logAndConvertEpisodeForDL(tvDbEpisode) {
 
 function saveEpisodes() {
     fs.writeFileSync(path.join(__dirname, '../data/airedEpisodesToProvide.json'), JSON.stringify(episodes, null, 4), 'utf8');
+    fs.writeFileSync(path.join(__dirname, '../data/providedEpisodes.json'), JSON.stringify(providedEpisodes, null, 4), 'utf8');
+}
+
+function saveSeries() {
+    fs.writeFileSync(path.join(__dirname, '../data/series.json'), JSON.stringify(series, null, 4), 'utf8');
 }
