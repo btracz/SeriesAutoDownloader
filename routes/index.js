@@ -40,11 +40,35 @@ router.get('/', auth, function (req, res) {
         });
 });
 
-router.get('/search', auth, function (req, res) {
+router.get('/episodes/search', auth, function (req, res) {
     downloader.searchForEpisodesToDownload().then((episodes)=> {
             res.send(JSON.stringify(episodes, null, 4));
         }
     );
+});
+
+router.get('/torrents/search', auth, function (req, res) {
+    downloader.searchEpisodeTorrents().then((episodes)=> {
+            res.send(JSON.stringify(episodes, null, 4));
+        }
+    );
+});
+
+router.get('/torrents/download', auth, function (req, res) {
+    downloader.downloadEpisodeTorrents().then((episodes)=> {
+            res.send(JSON.stringify(episodes, null, 4));
+        }
+    );
+});
+
+router.get('/torrents/watch', auth, function (req, res) {
+    downloader.watchTorrents();
+    res.send(JSON.stringify(downloader.getEpisodes(), null, 4));
+});
+
+router.get('/subs/search', auth, function (req, res) {
+    downloader.findEpisodeSubtitles();
+    res.send(JSON.stringify(downloader.getEpisodes(), null, 4));
 });
 
 router.get('/torrents', auth, function (req, res) {
@@ -59,16 +83,6 @@ router.get('/torrent/:id', auth, function (req, res) {
             res.send(JSON.stringify(status, null, 4));
         }
     );
-});
-
-router.delete('/series/:id', auth, function (req, res) {
-    downloader.deleteSeries(req.params.id);
-    res.sendStatus(200);
-});
-
-router.delete('/provided-episode/:id', auth, function (req, res) {
-    downloader.deleteProvidedEpisode(req.params.id);
-    res.sendStatus(200);
 });
 
 module.exports = router;

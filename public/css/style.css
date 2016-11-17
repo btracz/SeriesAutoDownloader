@@ -6,3 +6,11 @@ body {
 a {
   color: #00B7FF;
 }
+
+td {
+    padding: 5px;
+}
+
+#seriesPreview {
+    display: none;
+}

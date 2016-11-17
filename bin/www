@@ -25,8 +25,6 @@ console.log("TPB Endpoint : " + process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
 
 // Démarrage des tâches planifiées
 downloader.startEpisodeFinder();
-downloader.startTorrentWatcher();
-downloader.startSubFinder();
 
 /**
  * Create HTTP server.

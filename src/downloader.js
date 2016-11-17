@@ -28,6 +28,7 @@ module.exports = {
     searchForEpisodesToDownload: searchForEpisodesToDownload,
     searchEpisodeTorrents: searchEpisodeTorrents,
     downloadEpisodeTorrents: downloadEpisodeTorrents,
+    watchTorrents: watchTorrents,
     findEpisodeSubtitles: findEpisodeSubtitles,
     getTorrentsStatus: getTorrentsStatus,
     getTorrentStatus: getTorrentStatus,
@@ -35,8 +36,8 @@ module.exports = {
     getProvidedEpisodes: getProvidedEpisodes,
     getSeries: getSeries,
     deleteSeries: deleteSeries,
-    deleteProvidedEpisode: deleteProvidedEpisode,
-    findAndDownloadNewEpisodes: findAndDownloadNewEpisodes
+    searchSeries: searchSeries,
+    deleteProvidedEpisode: deleteProvidedEpisode
 };
 
 function getEpisodes() {
@@ -61,24 +62,78 @@ function deleteSeries(index) {
     saveSeries();
 }
 
+function searchSeries(partialName) {
+    let defer = Q.defer();
+    let tvdb = new Client(config.tvDbAPIKey);
+    tvdb.getSeriesByName(partialName)
+        .then(function (response) {
+            defer.resolve(response);
+        })
+        .catch(function (error) {
+            defer.reject(error);
+        });
+
+    return defer.promise;
+}
+
+scheduler.createJob("episodeFinder", "0 16 * * *", searchForEpisodesToDownload);
+scheduler.createJob("torrentFinder", "2-52/10 * * * *", searchEpisodeTorrents);
+scheduler.createJob("torrentDownloader", "5-55/10 * * * *", downloadEpisodeTorrents);
+scheduler.createJob("torrentWatcher", "7-57/10 * * * *", watchTorrents);
+scheduler.createJob("subFinder", "9-59/10 * * * *", findEpisodeSubtitles);
+
 /* ##### TACHES #### */
 function startEpisodeFinder() {
-    console.log("lancement de l'ordonnanceur de recherche quotidien");
-    scheduler.createJob("episodeFinder", "0 16 * * *", findAndDownloadNewEpisodes);
+    console.log("lancement de l'ordonnanceur de recherche d'épisodes quotidien");
     scheduler.startTask("episodeFinder");
+}
+
+function stopEpisodeFinder() {
+    console.log("arrêt de l'ordonnanceur de recherche d'épisodes quotidien");
+    scheduler.stopTask("episodeFinder");
+}
+
+function startTorrentFinder() {
+    console.log("lancement de l'ordonnanceur de recherche de torrents");
+    scheduler.startTask("torrentFinder");
+}
+
+function stopTorrentFinder() {
+    console.log("arrêt de l'ordonnanceur de recherche de torrents");
+    scheduler.stopTask("torrentFinder");
+}
+
+function startTorrentDownloader() {
+    console.log("lancement de l'ordonnanceur d'ajout de torrent à transmission");
+    scheduler.startTask("torrentDownloader");
+}
+
+function stopTorrentDownloader() {
+    console.log("arrêt de l'ordonnanceur d'ajout de torrent à transmission");
+    scheduler.stopTask("torrentDownloader");
 }
 
 function startTorrentWatcher() {
     console.log("lancement de la surveillance et classification des torrents");
-    scheduler.createJob("torrentWatcher", "*/10 * * * *", watchTorrents);
     scheduler.startTask("torrentWatcher");
+}
+
+function stopTorrentWatcher() {
+    console.log("arrêt de la surveillance et classification des torrents");
+    scheduler.stopTask("torrentWatcher");
 }
 
 function startSubFinder() {
     console.log("lancement de la recherche des sous-titres");
-    scheduler.createJob("subFinder", "5-55/10 * * * *", findEpisodeSubtitles);
     scheduler.startTask("subFinder");
 }
+
+function stopSubFinder() {
+    console.log("arrêt de la recherche des sous-titres");
+    scheduler.stopTask("subFinder");
+}
+
+/* #### FIN DES TACHES #### */
 
 function findAndDownloadNewEpisodes() {
     let defer = Q.defer();
@@ -121,6 +176,152 @@ function findAndDownloadNewEpisodes() {
     return defer.promise;
 }
 
+function searchForEpisodesToDownload() {
+    console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Recherche des épisodes`);
+    let defer = Q.defer();
+    let tvdb = new Client(config.tvDbAPIKey);
+
+    var promises = [];
+
+    if (!series) {
+        series = [];
+    }
+
+    series.forEach(serie => {
+        // On cherche les épisodes diffusés la veille
+        promises.push(tvdb.getEpisodeByAirDate(serie.id, moment().add(-1, "days").format("YYYY-MM-DD")));
+    });
+    Q.allSettled(promises).then(results => {
+        let episodesToDL = [];
+        results.forEach(function (result) {
+            if (result.state === "fulfilled") {
+                if (result.value) {
+                    console.log(`TV Db response : ${JSON.stringify(result.value)}`);
+                    if (Array.isArray(result.value)) {
+                        result.value.forEach(tvDbEpisode => {
+                            var convertedEpisode = logAndConvertEpisodeForDL(tvDbEpisode);
+                            episodes.push(convertedEpisode);
+                            episodesToDL.push(convertedEpisode);
+                        });
+                    } else {
+                        var convertedEpisode = logAndConvertEpisodeForDL(result.value);
+                        episodes.push(convertedEpisode);
+                        episodesToDL.push(convertedEpisode);
+                    }
+                }
+            } else {
+                console.log(`Erreur de promesse ${result.reason}`);
+            }
+        });
+
+        saveEpisodes();
+
+        if (episodes.length > 0) {
+            startTorrentFinder();
+        }
+
+        defer.resolve(episodesToDL);
+    });
+
+    return defer.promise;
+}
+
+function searchEpisodeTorrents() {
+    console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Recherche des torrents`);
+    let defer = Q.defer();
+    var promises = [];
+    episodes.forEach(episode => {
+        // On cherche les torrents des épisodes
+        promises.push(PirateBay.search(`${episode.series} S${episode.season}E${episode.number}`, {
+            category: 'all',
+            filter: {
+                verified: true
+            },
+            page: 0,
+            orderBy: 'leeches',
+            sortBy: 'desc'
+        }));
+    });
+
+    Q.allSettled(promises).then(results => {
+        results.forEach(function (result, index) {
+            if (result.state === "fulfilled") {
+                if (result.value && result.value.length > 0) {
+                    console.log(`Torrents trouvés : ${JSON.stringify(result.value)}`);
+                    episodes[index].torrentName = result.value[0].name;
+                    episodes[index].magnetLink = result.value[0].magnetLink;
+                } else {
+                    console.log(`Pas de torrent trouvé`);
+                }
+            } else {
+                console.log(`Erreur de promesse ${result.reason}`);
+            }
+        });
+
+        saveEpisodes();
+
+        if (episodes.filter(function(episode){ return !episode.magnetLink; }).length == 0) {
+            stopTorrentFinder();
+        }
+
+        if (episodes.filter(function(episode){ return !episode.transmissionId; }).length > 0) {
+            startTorrentDownloader();
+        }
+
+        defer.resolve(episodes);
+    });
+
+    return defer.promise;
+}
+
+function downloadEpisodeTorrents() {
+    console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Ajout des torrents`);
+    let defer = Q.defer();
+
+    let requests = episodes.map((episode) => {
+        if (!episode.episode) {
+            return new Promise((resolve) => {
+                transmission.addUrl(episode.magnetLink, {
+                    "download-dir": config.downloadDir
+                }, (error, result) => {
+                    if (error) {
+                        console.log(`Erreur à l'ajout d'un torrent : ${error}`)
+                    } else {
+                        console.log(`Torrent ajouté : ${result.id}`);
+                        episode.transmissionId = result.id;
+                        transmission.start(result.id, function (err) {
+                            if (err) {
+                                console.log(`Erreur au démarrage d'un torrent : ${error}`)
+                            } else {
+                                console.log(`Torrent démarré : ${result.id}`);
+                            }
+                        });
+                    }
+                    resolve();
+                });
+            });
+        } else {
+            return new Promise((resolve) => { resolve(); });
+        }
+    });
+
+    Promise.all(requests).then(() => {
+
+        if (episodes.filter(function(episode){ return !episode.transmissionId; }).length == 0) {
+            stopTorrentDownloader();
+        }
+
+        if (episodes.filter(function(episode){ return !episode.videoPath; }).length > 0) {
+            startTorrentWatcher();
+        }
+
+        saveEpisodes();
+        defer.resolve(episodes);
+    });
+
+    return defer.promise;
+}
+
 function watchTorrents() {
     console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Vérification des torrents`);
     if (episodes && episodes.length > 0) {
@@ -131,7 +332,7 @@ function watchTorrents() {
                 torrentsStatus.torrents.forEach((torrent) => {
                     console.log(`Torrent (${torrent.id}) ${torrent.name}, status : ${torrent.status}, doneDate ${torrent.doneDate}`);
                     if (torrent.doneDate > 0) {
-                        var epiIndex = getEpisodeIndexFromTorrentName(torrent.name);
+                        var epiIndex = getEpisodeIndexFromTorrentNameOrId(torrent.name, torrent.id);
                         console.log(`Episode index ${epiIndex}`);
                         // Le torrent est rattaché à un episode à mettre à disposition
                         if (epiIndex > -1) {
@@ -154,6 +355,14 @@ function watchTorrents() {
                                         episodes[epiIndex].videoPath = videoFullPath;
                                         episodes[epiIndex].videoFileName = videoFileName;
                                         saveEpisodes();
+
+                                        if (episodes.filter(function(episode){ return !episode.videoPath; }).length == 0) {
+                                            stopTorrentWatcher();
+                                        }
+
+                                        if (episodes.length > 0) {
+                                            startSubFinder();
+                                        }
 
                                         transmission.stop([torrent.id], function (err, arg) {
                                             console.log(`Torrent ${torrent.id} arrêté`);
@@ -180,6 +389,8 @@ function watchTorrents() {
                 });
             }
         });
+    } else {
+        stopTorrentWatcher();
     }
 }
 
@@ -251,6 +462,10 @@ function findEpisodeSubtitles() {
                         });
 
                         saveEpisodes();
+
+                        if (episodes.length == 0) {
+                            stopSubFinder();
+                        }
                     }
                 });
             })
@@ -260,120 +475,16 @@ function findEpisodeSubtitles() {
     }
 }
 
-/* #### FIN DES TACHES #### */
-
-function searchForEpisodesToDownload() {
-    let defer = Q.defer();
-    let tvdb = new Client(config.tvDbAPIKey);
-
-    var promises = [];
-
-    if (!series) {
-        series = [];
-    }
-
-    series.forEach(serie => {
-        // On cherche les épisodes diffusés la veille
-        promises.push(tvdb.getEpisodeByAirDate(serie.id, moment().add(-1, "days").format("YYYY-MM-DD")));
-    });
-    Q.allSettled(promises).then(results => {
-        let episodesToDL = [];
-        results.forEach(function (result) {
-            if (result.state === "fulfilled") {
-                if (result.value) {
-                    console.log(`TV Db response : ${JSON.stringify(result.value)}`);
-                    if (Array.isArray(result.value)) {
-                        result.value.forEach(tvDbEpisode => {
-                            episodesToDL.push(logAndConvertEpisodeForDL(tvDbEpisode));
-                        });
-                    } else {
-                        episodesToDL.push(logAndConvertEpisodeForDL(result.value));
-                    }
-                }
-            } else {
-                console.log(`Erreur de promesse ${result.reason}`);
-            }
-        });
-
-        defer.resolve(episodesToDL);
-    });
-
-    return defer.promise;
-}
-
-function searchEpisodeTorrents(airedEpisodes) {
-    let defer = Q.defer();
-    let episodesToDL = airedEpisodes;
-    var promises = [];
-    episodesToDL.forEach(episode => {
-        // On cherche les torrents des épisodes
-        promises.push(PirateBay.search(`${episode.series} S${episode.season}E${episode.number}`, {
-            category: 'all',
-            filter: {
-                verified: true
-            },
-            page: 0,
-            orderBy: 'leeches',
-            sortBy: 'desc'
-        }));
-    });
-    Q.allSettled(promises).then(results => {
-        results.forEach(function (result, index) {
-            if (result.state === "fulfilled") {
-                if (result.value && result.value.length > 0) {
-                    console.log(`Torrents trouvés : ${JSON.stringify(result.value)}`);
-                    episodesToDL[index].torrentName = result.value[0].name;
-                    episodesToDL[index].magnetLink = result.value[0].magnetLink;
-                } else {
-                    console.log(`Pas de torrent trouvé`);
-                }
-            } else {
-                console.log(`Erreur de promesse ${result.reason}`);
-            }
-        });
-
-        defer.resolve(episodesToDL);
-    });
-
-    return defer.promise;
-}
-
-function downloadEpisodeTorrents(airedEpisodes) {
-    let defer = Q.defer();
-    let episodesToDL = airedEpisodes.filter(episode => {
-        return episode.magnetLink
-    });
-
-    let requests = episodesToDL.map((episode) => {
-        return new Promise((resolve) => {
-            transmission.addUrl(episode.magnetLink, {
-                "download-dir": config.downloadDir
-            }, (error, result) => {
-                if (error) {
-                    console.log(`Erreur à l'ajout d'un torrent : ${error}`)
-                } else {
-                    console.log(`Torrent ajouté : ${result.id}`);
-                    episode.transmissionId = result.id;
-                    transmission.start(result.id, function (err) {
-                        if (err) {
-                            console.log(`Erreur au démarrage d'un torrent : ${error}`)
-                        } else {
-                            console.log(`Torrent démarré : ${result.id}`);
-                        }
-                    });
-                }
-                resolve();
-            });
-        });
-    });
-
-    Promise.all(requests).then(() => {
-        defer.resolve(episodesToDL);
-    });
-
-    return defer.promise;
-}
-
+/*
+ STOPPED       : 0  # Torrent is stopped
+ CHECK_WAIT    : 1  # Queued to check files
+ CHECK         : 2  # Checking files
+ DOWNLOAD_WAIT : 3  # Queued to download
+ DOWNLOAD      : 4  # Downloading
+ SEED_WAIT     : 5  # Queued to seed
+ SEED          : 6  # Seeding
+ ISOLATED      : 7  # Torrent can't find peers
+ */
 function getTorrentsStatus() {
     let defer = Q.defer();
 
@@ -389,16 +500,6 @@ function getTorrentsStatus() {
     return defer.promise;
 }
 
-/*
- STOPPED       : 0  # Torrent is stopped
- CHECK_WAIT    : 1  # Queued to check files
- CHECK         : 2  # Checking files
- DOWNLOAD_WAIT : 3  # Queued to download
- DOWNLOAD      : 4  # Downloading
- SEED_WAIT     : 5  # Queued to seed
- SEED          : 6  # Seeding
- ISOLATED      : 7  # Torrent can't find peers
- */
 function getTorrentStatus(id) {
     let defer = Q.defer();
 
@@ -426,12 +527,12 @@ function getSeriesName(id) {
     }
 }
 
-function getEpisodeIndexFromTorrentName(torrentName) {
+function getEpisodeIndexFromTorrentNameOrId(torrentName, torrentId) {
     var result = -1;
 
     if (episodes) {
         episodes.forEach((episode, index) => {
-            if (episode.torrentName == torrentName) {
+            if (episode.torrentName == torrentName || episode.transmissionId == torrentId) {
                 result = index;
             }
         });
