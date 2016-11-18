@@ -11,6 +11,12 @@ td {
     padding: 5px;
 }
 
-#seriesPreview {
-    display: none;
+.seriesBanner {
+    padding: 10px;
+}
+
+.deleteSeriesBtnBanner {
+    position: relative;
+    right: 40px;
+    top: -40px;
 }

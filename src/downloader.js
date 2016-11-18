@@ -36,6 +36,7 @@ module.exports = {
     getProvidedEpisodes: getProvidedEpisodes,
     getSeries: getSeries,
     deleteSeries: deleteSeries,
+    addSeries: addSeries,
     searchSeries: searchSeries,
     deleteProvidedEpisode: deleteProvidedEpisode
 };
@@ -55,6 +56,11 @@ function deleteProvidedEpisode(index) {
 
 function getSeries() {
     return series;
+}
+
+function addSeries(newSeries) {
+    series.push(newSeries);
+    saveSeries();
 }
 
 function deleteSeries(index) {

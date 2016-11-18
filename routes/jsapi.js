@@ -46,4 +46,9 @@ router.get('/series', auth, function (req, res) {
     });
 });
 
+router.post('/series', auth, function (req, res) {
+    downloader.addSeries(req.body);
+    res.sendStatus(200);
+});
+
 module.exports = router;

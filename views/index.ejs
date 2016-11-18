@@ -8,9 +8,6 @@
   <script src="/js/bootstrap.min.js"></script>
   <script src="/js/bootstrap-typeahead.min.js"></script>
 </head>
-<script>
-  var newSeries;
-</script>
 <body>
 <h1><%= title %></h1>
 
@@ -18,8 +15,15 @@
 <% if (series && series.length > 0) {
 for (var k = 0; k < series.length; k++) { %>
 <span>
-    <b><%= series[k].name %></b><br/>
-  </span>
+  <% if (series[k].banner) { %>
+  <img class="seriesBanner" width="600" src="<%= series[k].banner %>" title="<%= series[k].description %>"/>
+  <% } else { %>
+  <b><%= series[k].name %></b>
+  <% } %>
+  <button type="button" class="btn btn-default btn-xs deleteSeriesBtn <%= series[k].banner ? 'deleteSeriesBtnBanner' : '' %>" title="Supprimer" series-idx="<%= k %>">
+    <span class="glyphicon glyphicon-remove"></span>
+  </button>
+</span>
 <% }
 } else { %>
 <p>Pas de série surveillée.</p>
@@ -33,25 +37,57 @@ for (var k = 0; k < series.length; k++) { %>
       </div>
       <div id="seriesPreview">
         <img id="bannerPreview" width="300"/>
+
         <p id="descPreview"></p>
       </div>
-      <button type="submit" class="btn btn-default">Ajouter</button>
+      <button id="addSeriesBtn" type="submit" class="btn btn-default">Ajouter</button>
     </form>
   </div>
 </div>
 
 <script>
-  $("#newSeriesName").on("keyup change", function(){
-    $("#seriesPreview").hide();
-    newSeries = null;
+  var newSeries;
+  var matchingSeries = [];
+
+  $("#addSeriesBtn").click(function () {
+    $.ajax({
+      method: "POST",
+      url: "/api/series",
+      dataType: "json",
+      data: {
+        id: newSeries.seriesid,
+        name: newSeries.SeriesName,
+        banner: "http://thetvdb.com/banners/" + newSeries.banner,
+        description: newSeries.Overview
+      }
+    }).done(function () {
+      location.reload();
+    }).fail(function (error) {
+      alert("Erreur à l'ajout de la série : " + error.message);
+    });
+  });
+
+  $(".deleteSeriesBtn").click(function () {
+    var seriesIdx = $(this).attr("series-idx");
+    if (confirm("Supprimer la série ?")) {
+      $.ajax({
+        method: "DELETE",
+        url: "/api/series/" + seriesIdx
+      }).done(function () {
+        location.reload();
+      }).fail(function (jqXHR, textStatus) {
+        alert("Request failed: " + textStatus);
+      });
+    }
   });
 
   $("#newSeriesName").typeahead({
-    onSelect: function(item) {
-      alert(JSON.stringify(item));
-      newSeries = item;
-      $("#bannerPreview").attr('src', "http://thetvdb.com/banners/" + item.banner);
-      $("#descPreview").html(item.Overview);
+    onSelect: function (item) {
+      newSeries = matchingSeries.filter(function (series) {
+        return series.seriesid == item.value;
+      })[0];
+      $("#bannerPreview").attr('src', "http://thetvdb.com/banners/" + newSeries.banner);
+      $("#descPreview").html(newSeries.Overview);
       $("#seriesPreview").show();
     },
     ajax: {
@@ -60,8 +96,8 @@ for (var k = 0; k < series.length; k++) { %>
       displayField: "SeriesName",
       triggerLength: 3,
       method: "get",
-      loadingClass: "loading-circle",
       preDispatch: function (query) {
+        $("#seriesPreview").hide();
         return {
           name: query
         }
@@ -72,6 +108,8 @@ for (var k = 0; k < series.length; k++) { %>
           return false;
         }
         // We good!
+        matchingSeries = data;
+
         return data;
       }
     }
@@ -83,30 +121,34 @@ for (var k = 0; k < series.length; k++) { %>
 <% if (episodes && episodes.length > 0) { %>
 <table class="table table-striped">
   <thead>
-    <tr>
-      <th>Série</th>
-      <th>Episode</th>
-      <th>Torrent trouvé ?
-        <a class="btn btn-default btn-xs" title="Chercher des torrents" href="/torrents/search"><span class="glyphicon glyphicon-repeat"></span></a></th>
-      <th>Torrent ajouté ?
-        <a type="button" class="btn btn-default btn-xs" title="Télécharger les épisodes" href="/torrents/download"><span class="glyphicon glyphicon-repeat"></span></a></th>
-      <th>Téléchargement terminé ?
-        <a type="button" class="btn btn-default btn-xs" title="Vérifier les torrents" href="/torrents/watch"><span class="glyphicon glyphicon-repeat"></span></a></th>
-      <th>Sous-titres trouvés ?
-        <a type="button" class="btn btn-default btn-xs" title="Chercher les sous-titres" href="/subs/search"><span class="glyphicon glyphicon-repeat"></span></a></th>
-    </tr>
+  <tr>
+    <th>Série</th>
+    <th>Episode</th>
+    <th>Torrent trouvé ?
+      <a class="btn btn-default btn-xs" title="Chercher des torrents" href="/torrents/search"><span
+                class="glyphicon glyphicon-repeat"></span></a></th>
+    <th>Torrent ajouté ?
+      <a type="button" class="btn btn-default btn-xs" title="Télécharger les épisodes" href="/torrents/download"><span
+                class="glyphicon glyphicon-repeat"></span></a></th>
+    <th>Téléchargement terminé ?
+      <a type="button" class="btn btn-default btn-xs" title="Vérifier les torrents" href="/torrents/watch"><span
+                class="glyphicon glyphicon-repeat"></span></a></th>
+    <th>Sous-titres trouvés ?
+      <a type="button" class="btn btn-default btn-xs" title="Chercher les sous-titres" href="/subs/search"><span
+                class="glyphicon glyphicon-repeat"></span></a></th>
+  </tr>
   </thead>
   <tbody>
-    <% for (var i = 0; i < episodes.length; i++) { %>
-    <tr>
-      <td><%= episodes[i].series %></td>
-      <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %></td>
-      <td><%= episodes[i].magnetLink ? '✓' : '' %></td>
-      <td><%= episodes[i].transmissionId ? '✓' : '' %></td>
-      <td><%= episodes[i].videoPath ? '✓' : '' %></td>
-      <td></td>
-    </tr>
-    <% } %>
+  <% for (var i = 0; i < episodes.length; i++) { %>
+  <tr>
+    <td><%= episodes[i].series %></td>
+    <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %></td>
+    <td><%= episodes[i].magnetLink ? '✓' : '' %></td>
+    <td><%= episodes[i].transmissionId ? '✓' : '' %></td>
+    <td><%= episodes[i].videoPath ? '✓' : '' %></td>
+    <td></td>
+  </tr>
+  <% } %>
   </tbody>
 </table>
 <% } else { %>
