@@ -1,5 +1,5 @@
 body {
-  padding: 50px;
+  padding: 0px 50px;
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
 }
 
@@ -17,6 +17,6 @@ td {
 
 .deleteSeriesBtnBanner {
     position: relative;
-    right: 40px;
-    top: -40px;
+    right: 45px;
+    top: -35px;
 }
