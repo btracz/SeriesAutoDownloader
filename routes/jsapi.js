@@ -40,6 +40,11 @@ router.delete('/provided-episode/:id', auth, function (req, res) {
     res.sendStatus(200);
 });
 
+router.delete('/episode/:id', auth, function (req, res) {
+    downloader.deleteEpisode(req.params.id);
+    res.sendStatus(200);
+});
+
 router.get('/series', auth, function (req, res) {
     downloader.searchSeries(req.query.name).then(series => {
         res.send(JSON.stringify(series));

@@ -38,6 +38,7 @@ module.exports = {
     deleteSeries: deleteSeries,
     addSeries: addSeries,
     searchSeries: searchSeries,
+    deleteEpisode: deleteEpisode,
     deleteProvidedEpisode: deleteProvidedEpisode
 };
 
@@ -51,6 +52,11 @@ function getProvidedEpisodes() {
 
 function deleteProvidedEpisode(index) {
     providedEpisodes.splice(index, 1);
+    saveEpisodes();
+}
+
+function deleteEpisode(index) {
+    episodes.splice(index, 1);
     saveEpisodes();
 }
 
@@ -418,7 +424,7 @@ function findEpisodeSubtitles() {
                                 limit: 'best'
                             }).then((subtitles) => {
                                 console.log(`Promesse ${index}`);
-                                if (subtitles) {
+                                if (subtitles && subtitles.en) {
                                     console.log(`(n°${index + 1}) Sous-titres trouvés pour ${episodes[index].series} S${episodes[index].season}E${episodes[index].number}: ${JSON.stringify(subtitles)}`);
                                     episodes[index].subs = subtitles.en.url;
 
@@ -440,6 +446,7 @@ function findEpisodeSubtitles() {
                                         }
                                     });
                                 } else {
+                                    console.log(`(n°${index + 1}) Pas de sous-titres trouvés pour ${episodes[index].series} S${episodes[index].season}E${episodes[index].number}`);
                                     defer.reject();
                                 }
                             });
@@ -455,7 +462,9 @@ function findEpisodeSubtitles() {
                     var toDestroyIndexes = [];
                     results.forEach((result, index) => {
                         console.log(`Promesse n°${index}, résultat ${result.state}, valeur ${result.value}`);
-                        toDestroyIndexes.push(result.value);
+                        if (result.state == "fulfilled") {
+                            toDestroyIndexes.push(result.value);
+                        }
                     });
                     console.log(`${toDestroyIndexes.length} épisodes à détruire`);
                     if (toDestroyIndexes.length > 0) {

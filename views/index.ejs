@@ -142,7 +142,10 @@ for (var k = 0; k < series.length; k++) { %>
   <% for (var i = 0; i < episodes.length; i++) { %>
   <tr>
     <td><%= episodes[i].series %></td>
-    <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %></td>
+    <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %>
+      <button type="button" class="btn btn-default btn-xs deleteEpisodeBtn" title="Supprimer" episode-idx="<%= k %>">
+        <span class="glyphicon glyphicon-remove"></span>
+      </button></td>
     <td><%= episodes[i].magnetLink ? '✓' : '' %></td>
     <td><%= episodes[i].transmissionId ? '✓' : '' %></td>
     <td><%= episodes[i].videoPath ? '✓' : '' %></td>
@@ -178,14 +181,30 @@ for (var k = 0; k < series.length; k++) { %>
 <script>
   $(".archiveBtn").click(function () {
     var epId = $(this).attr('ep-id');
-    $.ajax({
-      method: "DELETE",
-      url: "/api/provided-episode/" + epId
-    }).done(function () {
-      location.reload();
-    }).fail(function (jqXHR, textStatus) {
-      alert("Request failed: " + textStatus);
-    });
+    if (confirm("Archiver l'épisode ?")){
+      $.ajax({
+        method: "DELETE",
+        url: "/api/provided-episode/" + epId
+      }).done(function () {
+        location.reload();
+      }).fail(function (jqXHR, textStatus) {
+        alert("Request failed: " + textStatus);
+      });
+    }
+  });
+
+  $(".deleteEpisodeBtn").click(function () {
+    var epId = $(this).attr('ep-id');
+    if (confirm("Supprimer l'épisode ?")) {
+      $.ajax({
+        method: "DELETE",
+        url: "/api/episode/" + epId
+      }).done(function () {
+        location.reload();
+      }).fail(function (jqXHR, textStatus) {
+        alert("Request failed: " + textStatus);
+      });
+    }
   });
 </script>
 </body>
