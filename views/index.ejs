@@ -143,7 +143,7 @@ for (var k = 0; k < series.length; k++) { %>
   <tr>
     <td><%= episodes[i].series %></td>
     <td>S<%= episodes[i].season %>E<%= episodes[i].number %><br/><%= episodes[i].name %>
-      <button type="button" class="btn btn-default btn-xs deleteEpisodeBtn" title="Supprimer" episode-idx="<%= k %>">
+      <button type="button" class="btn btn-default btn-xs deleteEpisodeBtn" title="Supprimer" episode-idx="<%= i %>">
         <span class="glyphicon glyphicon-remove"></span>
       </button></td>
     <td><%= episodes[i].magnetLink ? '✓' : '' %></td>
