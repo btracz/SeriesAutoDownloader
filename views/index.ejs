@@ -194,7 +194,7 @@ for (var k = 0; k < series.length; k++) { %>
   });
 
   $(".deleteEpisodeBtn").click(function () {
-    var epId = $(this).attr('ep-id');
+    var epId = $(this).attr('episode-idx');
     if (confirm("Supprimer l'épisode ?")) {
       $.ajax({
         method: "DELETE",
