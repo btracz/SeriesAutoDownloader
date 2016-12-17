@@ -272,11 +272,15 @@ function searchEpisodeTorrents() {
 
         saveEpisodes();
 
-        if (episodes.filter(function(episode){ return !episode.magnetLink; }).length == 0) {
+        if (episodes.filter(function (episode) {
+                return !episode.magnetLink;
+            }).length == 0) {
             stopTorrentFinder();
         }
 
-        if (episodes.filter(function(episode){ return !episode.transmissionId; }).length > 0) {
+        if (episodes.filter(function (episode) {
+                return !episode.transmissionId;
+            }).length > 0) {
             startTorrentDownloader();
         }
 
@@ -313,17 +317,23 @@ function downloadEpisodeTorrents() {
                 });
             });
         } else {
-            return new Promise((resolve) => { resolve(); });
+            return new Promise((resolve) => {
+                resolve();
+            });
         }
     });
 
     Promise.all(requests).then(() => {
 
-        if (episodes.filter(function(episode){ return !episode.transmissionId; }).length == 0) {
+        if (episodes.filter(function (episode) {
+                return !episode.transmissionId;
+            }).length == 0) {
             stopTorrentDownloader();
         }
 
-        if (episodes.filter(function(episode){ return !episode.videoPath; }).length > 0) {
+        if (episodes.filter(function (episode) {
+                return !episode.videoPath;
+            }).length > 0) {
             startTorrentWatcher();
         }
 
@@ -368,7 +378,9 @@ function watchTorrents() {
                                         episodes[epiIndex].videoFileName = videoFileName;
                                         saveEpisodes();
 
-                                        if (episodes.filter(function(episode){ return !episode.videoPath; }).length == 0) {
+                                        if (episodes.filter(function (episode) {
+                                                return !episode.videoPath;
+                                            }).length == 0) {
                                             stopTorrentWatcher();
                                         }
 
@@ -381,8 +393,12 @@ function watchTorrents() {
                                             if (videoFile) {
                                                 // On le déplace dans DLNA si on est le serveur transmission
                                                 if (config.isTransmissionServer) {
-                                                    fs.rename(videoFullPath, `${config.dlnaDir}/${videoFileName}`, () => {
-                                                        console.log(`fichier ${videoFileName} déplacé dans dlna`);
+                                                    fs.rename(videoFullPath, `${config.dlnaDir}/${videoFileName}`, (err) => {
+                                                        if (!err) {
+                                                            console.log(`fichier ${videoFileName} déplacé dans dlna`);
+                                                        } else {
+                                                            console.error(`impossible de déplacer le fichier ${videoFileName}, raison : `, err)
+                                                        }
                                                     });
                                                 }
 
