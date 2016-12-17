@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var downloader = require("../src/downloader");
+var scheduler = require("../src/scheduler");
 var Q = require("q");
 var fs = require("fs");
 var path = require("path");
@@ -37,6 +38,17 @@ router.get('/', auth, function (req, res) {
             episodes: downloader.getEpisodes(),
             providedEpisodes: downloader.getProvidedEpisodes(),
             series: downloader.getSeries()
+        });
+});
+
+router.get('/status', auth, function (req, res) {
+    res.render('status',
+        {
+            title: "SeriesAutoDownloader",
+            episodes: downloader.getEpisodes(),
+            providedEpisodes: downloader.getProvidedEpisodes(),
+            series: downloader.getSeries(),
+            jobs: scheduler.getTasks()
         });
 });
 

@@ -62,6 +62,19 @@ function stopTask(taskName) {
     scheduler.stop(taskName);
 }
 
+function getTasks() {
+    var tasks = [];
+    console.log("tasks : ", scheduler.jobs);
+    for(var key in scheduler.jobs) {
+        tasks.push({
+            "name": key,
+            "running": scheduler.jobs[key].running ? scheduler.jobs[key].running : false,
+            "pattern": scheduler.jobs[key].cronTime.source
+        });
+    }
+    return tasks;
+}
+
 /**
  *
  * @param taskName
@@ -102,5 +115,6 @@ module.exports = {
     createJob: createJob,
     startTask: startTask,
     updateTaskOnCronChange: updateTaskOnCronChange,
-    stopTask: stopTask
+    stopTask: stopTask,
+    getTasks: getTasks
 };
