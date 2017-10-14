@@ -9,7 +9,13 @@ var debug = require('debug')('seriesautodownloader:server');
 var http = require('http');
 var fs = require("fs");
 var path = require("path");
+
+
+// Création de la variable
 var config = JSON.parse(fs.readFileSync(path.join(__dirname, '../conf.json'), 'utf8'));
+process.env.THEPIRATEBAY_DEFAULT_ENDPOINT = config.piratebayEndpoint;
+console.log("TPB Endpoint : " + process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
+
 var downloader = require("../src/downloader");
 
 /**
@@ -18,10 +24,6 @@ var downloader = require("../src/downloader");
 
 var port = normalizePort(process.env.PORT || '3089');
 app.set('port', port);
-
-// Création de la variable
-process.env.THEPIRATEBAY_DEFAULT_ENDPOINT = config.piratebayEndpoint;
-console.log("TPB Endpoint : " + process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
 
 // Démarrage des tâches planifiées
 downloader.startEpisodeFinder();

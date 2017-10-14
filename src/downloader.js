@@ -250,7 +250,7 @@ function searchEpisodeTorrents() {
                 verified: true
             },
             page: 0,
-            orderBy: 'leeches',
+            orderBy: 'seeds',
             sortBy: 'desc'
         }));
     });
@@ -292,7 +292,6 @@ function searchEpisodeTorrents() {
 
 function downloadEpisodeTorrents() {
     console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Ajout des torrents`);
-    let defer = Q.defer();
 
     let requests = episodes.map((episode) => {
         if (!episode.episode) {
@@ -323,7 +322,7 @@ function downloadEpisodeTorrents() {
         }
     });
 
-    Promise.all(requests).then(() => {
+    return Promise.all(requests).then(() => {
 
         if (episodes.filter(function (episode) {
                 return !episode.transmissionId;
@@ -338,10 +337,8 @@ function downloadEpisodeTorrents() {
         }
 
         saveEpisodes();
-        defer.resolve(episodes);
+        return episodes;
     });
-
-    return defer.promise;
 }
 
 function watchTorrents() {
@@ -451,7 +448,9 @@ function findEpisodeSubtitles() {
                                             var subFile = splittedVideoName.join('.');
                                             if (config.isTransmissionServer) {
                                                 var file = fs.createWriteStream(`${config.dlnaDir}/${subFile}`);
-                                                file.write(fileContent);
+                                                file.write(fileContent, () => {
+                                                    file.close();
+                                                });
                                             } else {
                                                 console.log(`${subFile} : longueur ${fileContent.length}`);
                                             }

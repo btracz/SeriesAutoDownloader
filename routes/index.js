@@ -66,7 +66,7 @@ router.get('/torrents/search', auth, function (req, res) {
     );
 });
 
-router.get('/torrents/download', auth, function (req, res) {
+router.get('/torrents/download', auth, function (req, res, next) {
     downloader.downloadEpisodeTorrents().then((episodes)=> {
             res.send(JSON.stringify(episodes, null, 4));
         }
