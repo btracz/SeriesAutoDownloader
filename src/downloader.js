@@ -14,7 +14,7 @@ var providedEpisodes = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/
 var transmission = new Transmission(config.transmission);
 const OpenSub = require('opensubtitles-api');
 const OpenSubtitles = new OpenSub({
-    useragent: 'OSTestUserAgentTemp',
+    useragent: config.opensubUA,
     username: config.opensubUsername,
     password: require('crypto').createHash('md5').update(config.opensubPassword).digest('hex'),
     ssl: true
@@ -260,10 +260,12 @@ function searchEpisodeTorrents() {
             if (result.state === "fulfilled") {
                 if (result.value && result.value.length > 0) {
                     console.log(`Torrents trouvés : ${JSON.stringify(result.value)}`);
-                    episodes[index].torrentName = result.value[0].name;
-                    episodes[index].magnetLink = result.value[0].magnetLink;
+                    if (!episodes[index].torrentName && !episodes[index].magnetLink) {
+                        episodes[index].torrentName = result.value[0].name;
+                        episodes[index].magnetLink = result.value[0].magnetLink;
+                    }
                 } else {
-                    console.log(`Pas de torrent trouvé`);
+                    console.log(`Pas de torrent trouvé`, result);
                 }
             } else {
                 console.log(`Erreur de promesse ${result.reason}`);
@@ -286,6 +288,8 @@ function searchEpisodeTorrents() {
 
         defer.resolve(episodes);
     });
+
+    // Gérer les erreurs avec https://thepiratebay-proxylist.se/api/v1/proxies
 
     return defer.promise;
 }
@@ -433,7 +437,7 @@ function findEpisodeSubtitles() {
                             let defer = Q.defer();
                             OpenSubtitles.search({
                                 sublanguageid: 'eng',
-                                filename: episodes[index].videoFileName,
+                                query: episodes[index].videoFileName,
                                 limit: 'best'
                             }).then((subtitles) => {
                                 console.log(`Promesse ${index}`);
@@ -441,7 +445,7 @@ function findEpisodeSubtitles() {
                                     console.log(`(n°${index + 1}) Sous-titres trouvés pour ${episodes[index].series} S${episodes[index].season}E${episodes[index].number}: ${JSON.stringify(subtitles)}`);
                                     episodes[index].subs = subtitles.en.url;
 
-                                    request.get(subtitles.en.url, function (error, response, fileContent) {
+                                    request(subtitles.en.url, function (error, response, fileContent) {
                                         if (!error && response.statusCode == 200) {
                                             var splittedVideoName = episodes[index].videoFileName.split('.');
                                             splittedVideoName[splittedVideoName.length - 1] = "srt";
@@ -464,6 +468,8 @@ function findEpisodeSubtitles() {
                                     console.log(`(n°${index + 1}) Pas de sous-titres trouvés pour ${episodes[index].series} S${episodes[index].season}E${episodes[index].number}`);
                                     defer.reject();
                                 }
+                            }).catch(err => {
+                                console.error(episodes[i].videoFileName, err);
                             });
 
                             return defer.promise;

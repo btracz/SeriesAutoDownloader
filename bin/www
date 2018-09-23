@@ -3,19 +3,17 @@
 /**
  * Module dependencies.
  */
-
-var app = require('../app');
 var debug = require('debug')('seriesautodownloader:server');
 var http = require('http');
 var fs = require("fs");
 var path = require("path");
 
-
 // Création de la variable
 var config = JSON.parse(fs.readFileSync(path.join(__dirname, '../conf.json'), 'utf8'));
-process.env.THEPIRATEBAY_DEFAULT_ENDPOINT = config.piratebayEndpoint;
-console.log("TPB Endpoint : " + process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
+process.env["THEPIRATEBAY_DEFAULT_ENDPOINT"] = config.piratebayEndpoint;
+console.log("THEPIRATEBAY_DEFAULT_ENDPOINT : ", process.env.THEPIRATEBAY_DEFAULT_ENDPOINT);
 
+var app = require('../app');
 var downloader = require("../src/downloader");
 
 /**
