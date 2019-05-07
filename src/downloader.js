@@ -212,13 +212,21 @@ function searchForEpisodesToDownload() {
                     if (Array.isArray(result.value)) {
                         result.value.forEach(tvDbEpisode => {
                             var convertedEpisode = logAndConvertEpisodeForDL(tvDbEpisode);
-                            episodes.push(convertedEpisode);
-                            episodesToDL.push(convertedEpisode);
+                            if (checkIfEpisodeIsKnown(convertedEpisode)) {
+                                episodes.push(convertedEpisode);
+                                episodesToDL.push(convertedEpisode);
+                            } else {
+                                console.log(`Episode déjà connu : ${convertedEpisode.series} S${convertedEpisode.season}E${convertedEpisode.number}`);
+                            }
                         });
                     } else {
                         var convertedEpisode = logAndConvertEpisodeForDL(result.value);
-                        episodes.push(convertedEpisode);
-                        episodesToDL.push(convertedEpisode);
+                        if (checkIfEpisodeIsKnown(convertedEpisode)) {
+                            episodes.push(convertedEpisode);
+                            episodesToDL.push(convertedEpisode);
+                        } else {
+                            console.log(`Episode déjà connu : ${convertedEpisode.series} S${convertedEpisode.season}E${convertedEpisode.number}`);
+                        }
                     }
                 }
             } else {
@@ -607,6 +615,16 @@ function logAndConvertEpisodeForDL(tvDbEpisode) {
     console.log(`${episode.series}, épisode diffusé hier : ${episode.name} (S${episode.season}E${episode.number})`);
 
     return episode;
+}
+
+function checkIfEpisodeIsKnown({series, season, number}) {
+    return (episodes.findIndex(e => e.series === series
+    && e.number === number
+    && e.season === season)
+    < 0) && (providedEpisodes.findIndex(e => e.series === series
+    && e.number === number
+    && e.season === season)
+    < 0);
 }
 
 function saveEpisodes() {
