@@ -5,6 +5,8 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
+const config = require("./config");
+
 var index = require('./routes/index');
 var jsapi = require('./routes/jsapi');
 
@@ -24,6 +26,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', index);
 app.use('/api', jsapi);
+ 
+const { createProxyMiddleware } = require('http-proxy-middleware');
+app.use('/banners', createProxyMiddleware({ target: config.tvDb.cdn, changeOrigin: true }));
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

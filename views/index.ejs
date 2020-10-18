@@ -35,31 +35,31 @@ for (var k = 0; k < series.length; k++) { %>
 
         <p id="descPreview"></p>
       </div>
-      <button id="addSeriesBtn" type="submit" class="btn btn-default">Ajouter</button>
+      <button id="addSeriesBtn" type="button" class="btn btn-default">Ajouter</button>
     </form>
   </div>
 </div>
-
 <script>
   var newSeries;
   var matchingSeries = [];
 
   $("#addSeriesBtn").click(function () {
-    $.ajax({
+    var addRequest = $.ajax({
       method: "POST",
       url: "/api/series",
       dataType: "json",
       data: {
         id: newSeries.seriesid,
         name: newSeries.SeriesName,
-        banner: "http://thetvdb.com/banners/" + newSeries.banner,
+        banner: newSeries.banner,
         description: newSeries.Overview
       }
-    }).done(function () {
-      location.reload();
-    }).fail(function (error) {
-      alert("Erreur à l'ajout de la série : " + error.message);
     });
+    addRequest.done(() => location.reload());    
+    addRequest.fail(function (err) {
+      confirm(`Erreur à l'ajout de la série : ${err ? err.responseText : '?'}`);
+      console.error(err);
+	  });
   });
 
   $(".deleteSeriesBtn").click(function () {
@@ -81,7 +81,7 @@ for (var k = 0; k < series.length; k++) { %>
       newSeries = matchingSeries.filter(function (series) {
         return series.seriesid == item.value;
       })[0];
-      $("#bannerPreview").attr('src', "http://thetvdb.com/banners/" + newSeries.banner);
+      $("#bannerPreview").attr('src', newSeries.banner);
       $("#descPreview").html(newSeries.Overview);
       $("#seriesPreview").show();
     },

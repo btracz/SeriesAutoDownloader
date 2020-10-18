@@ -1,0 +1,26 @@
+{
+  "tvDb": {
+    "cdn": "https://artworks.thetvdb.com",
+    "apiKey": "YOUR_API_KEY (https://thetvdb.com/dashboard/account/apikey)"
+  },
+  "openSubtitles": {
+    "username": "YOUR_OPENSUB_USERNAME",
+    "password": "YOUR_OPENSUB_PASSWORD",
+    "UA": "YOUR_UA (https://trac.opensubtitles.org/projects/opensubtitles/wiki/DevReadFirst#Howtorequestanewuseragent)"
+  },
+  "downloadDir": "//YOUR_NAS_IP/downloads",
+  "dlnaDir": "//YOUR_NAS_IP/dlna",
+  "login": "YOUR_ADMIN_LOGIN",
+  "password": "YOUR_ADMIN_PASSWORD",
+  "transmission": {
+    "port": 9091,
+    "host": "YOUR_TRANSMISSION_IP",
+    "username": "YOUR_TRANSMISSION_LOGIN",
+    "password": "YOUR_TRANSMISSION_PASSWORD"
+  },
+  "jackett": {
+    "endpoint": "http://YOUR_JACKETT_IP:9117/api/v2.0/indexers/all/results",
+    "apiKey": "YOUR_JACKETT_API_KEY"
+  },
+  "isTransmissionServer": false // Set to true if you don't want to move files from torrent download
+}

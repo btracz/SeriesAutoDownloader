@@ -1,22 +1,22 @@
-var PirateBay = require('thepiratebay');
 var Client = require("node-tvdb");
 var fs = require("fs");
 var path = require("path");
 var moment = require("moment");
+const superagent = require("superagent");
 var Q = require("q");
 var request = require("request");
 var Transmission = require('transmission');
 var scheduler = require("./scheduler");
-var config = JSON.parse(fs.readFileSync(path.join(__dirname, '../conf.json'), 'utf8'));
+var config = require('../config');
 var series = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/series.json'), 'utf8'));
 var episodes = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/airedEpisodesToProvide.json'), 'utf8'));
 var providedEpisodes = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/providedEpisodes.json'), 'utf8'));
 var transmission = new Transmission(config.transmission);
 const OpenSub = require('opensubtitles-api');
 const OpenSubtitles = new OpenSub({
-    useragent: config.opensubUA,
-    username: config.opensubUsername,
-    password: require('crypto').createHash('md5').update(config.opensubPassword).digest('hex'),
+    useragent: config.openSubtitles.UA,
+    username: config.openSubtitles.username,
+    password: require('crypto').createHash('md5').update(config.openSubtitles.password).digest('hex'),
     ssl: true
 });
 
@@ -65,6 +65,9 @@ function getSeries() {
 }
 
 function addSeries(newSeries) {
+    if (series.find(s => s.id === newSeries.id)) {
+        throw new Error("Série déjà surveillée");
+    }
     series.push(newSeries);
     saveSeries();
 }
@@ -76,7 +79,7 @@ function deleteSeries(index) {
 
 function searchSeries(partialName) {
     let defer = Q.defer();
-    let tvdb = new Client(config.tvDbAPIKey);
+    let tvdb = new Client(config.tvDb.apiKey);
     tvdb.getSeriesByName(partialName)
         .then(function (response) {
             defer.resolve(response);
@@ -191,7 +194,7 @@ function findAndDownloadNewEpisodes() {
 function searchForEpisodesToDownload() {
     console.log(`${moment().format("DD/MM/YYYY HH:mm:ss")} : Recherche des épisodes`);
     let defer = Q.defer();
-    let tvdb = new Client(config.tvDbAPIKey);
+    let tvdb = new Client(config.tvDb.apiKey);
 
     var promises = [];
 
@@ -200,27 +203,43 @@ function searchForEpisodesToDownload() {
     }
 
     series.forEach(serie => {
-        // On cherche les épisodes diffusés la veille
-        promises.push(tvdb.getEpisodeByAirDate(serie.id, moment().add(-1, "days").format("YYYY-MM-DD")));
+        moment().diff
+		var today = moment();
+		var march = moment([2020, 2, 1]);
+		let nbDays = today.diff(march, 'days');
+		// On cherche les épisodes diffusés depuis mars
+		for(let i=nbDays; i<=1;i--) {
+			promises.push(
+				tvdb.getEpisodeByAirDate(serie.id, moment().add(-i, "days").format("YYYY-MM-DD"))
+					.then(results => {
+						return {
+							...serie,
+							results
+						}
+					})
+			);
+		}
     });
-    Q.allSettled(promises).then(results => {
+    Q.allSettled(promises).then(series => {
+		//console.log("[searchForEpisodesToDownload] series :", series);
         let episodesToDL = [];
-        results.forEach(function (result) {
-            if (result.state === "fulfilled") {
-                if (result.value) {
-                    console.log(`TV Db response : ${JSON.stringify(result.value)}`);
-                    if (Array.isArray(result.value)) {
-                        result.value.forEach(tvDbEpisode => {
-                            var convertedEpisode = logAndConvertEpisodeForDL(tvDbEpisode);
+        series.forEach(function (serie) {
+            
+            if (serie.state === "fulfilled") {
+                if (serie.value && serie.value.results) {
+                    console.log(`TV Db response : ${JSON.stringify(serie.value.results)}`);
+                    if (Array.isArray(serie.value.results)) {
+                        serie.value.results.forEach(tvDbEpisode => {
+                            var convertedEpisode = logAndConvertEpisodeForDL(tvDbEpisode, serie.value.options);
                             if (checkIfEpisodeIsKnown(convertedEpisode)) {
                                 episodes.push(convertedEpisode);
                                 episodesToDL.push(convertedEpisode);
                             } else {
-                                console.log(`Episode déjà connu : ${convertedEpisode.series} S${convertedEpisode.season}E${convertedEpisode.number}`);
+                                console.log(`Episode déjà  connu : ${convertedEpisode.series} S${convertedEpisode.season}E${convertedEpisode.number}`);
                             }
                         });
                     } else {
-                        var convertedEpisode = logAndConvertEpisodeForDL(result.value);
+                        var convertedEpisode = logAndConvertEpisodeForDL(serie.value.results, serie.value.options);
                         if (checkIfEpisodeIsKnown(convertedEpisode)) {
                             episodes.push(convertedEpisode);
                             episodesToDL.push(convertedEpisode);
@@ -251,26 +270,30 @@ function searchEpisodeTorrents() {
     let defer = Q.defer();
     var promises = [];
     episodes.forEach(episode => {
+        const episodeString = `S${episode.season}E${episode.number}`;
+        const searchText = `${episode.series} ${episodeString}${episode.options ? ' ' + episode.options : ''}`;
+        console.log("searchText", searchText);
         // On cherche les torrents des épisodes
-        promises.push(PirateBay.search(`${episode.series} S${episode.season}E${episode.number}`, {
-            category: 'all',
-            filter: {
-                verified: true
-            },
-            page: 0,
-            orderBy: 'seeds',
-            sortBy: 'desc'
-        }));
+        promises.push(
+            superagent.get(config.jackett.endpoint)
+                      .query({ apikey: config.jackett.apiKey, Query: searchText })
+                      .then(result => {
+                        // trie par seeders desc
+                        let matchingTorrents = result.body.Results.filter(r => r.Title.includes(episodeString));
+                        matchingTorrents.sort((a, b) => a.Seeders - b.Seeders);
+                        return matchingTorrents;
+                      })
+        );
     });
 
     Q.allSettled(promises).then(results => {
         results.forEach(function (result, index) {
             if (result.state === "fulfilled") {
                 if (result.value && result.value.length > 0) {
-                    console.log(`Torrents trouvés : ${JSON.stringify(result.value)}`);
+                    console.log(`Torrents trouvés : ${JSON.stringify(result.value.length)}`);
                     if (!episodes[index].torrentName && !episodes[index].magnetLink) {
-                        episodes[index].torrentName = result.value[0].name;
-                        episodes[index].magnetLink = result.value[0].magnetLink;
+                        episodes[index].torrentName = result.value[0].Title;
+                        episodes[index].magnetLink = result.value[0].MagnetUri;
                     }
                 } else {
                     console.log(`Pas de torrent trouvé`, result);
@@ -284,7 +307,7 @@ function searchEpisodeTorrents() {
 
         if (episodes.filter(function (episode) {
                 return !episode.magnetLink;
-            }).length == 0) {
+            }).length === 0) {
             stopTorrentFinder();
         }
 
@@ -296,8 +319,6 @@ function searchEpisodeTorrents() {
 
         defer.resolve(episodes);
     });
-
-    // Gérer les erreurs avec https://thepiratebay-proxylist.se/api/v1/proxies
 
     return defer.promise;
 }
@@ -338,7 +359,7 @@ function downloadEpisodeTorrents() {
 
         if (episodes.filter(function (episode) {
                 return !episode.transmissionId;
-            }).length == 0) {
+            }).length === 0) {
             stopTorrentDownloader();
         }
 
@@ -371,7 +392,7 @@ function watchTorrents() {
                             if (!episodes[epiIndex].videoFile) {
                                 console.log(`Fichiers : ${JSON.stringify(torrent.files)}`);
                                 // On arrête le torrent avant de déplacer le fichier
-                                if (torrent.status != 0) {
+                                if (torrent.status !== 0) {
                                     var videoFile = getVideoFilePath(torrent);
                                     if (videoFile) {
                                         var videoFileName = videoFile.split('/').pop();
@@ -389,7 +410,7 @@ function watchTorrents() {
 
                                         if (episodes.filter(function (episode) {
                                                 return !episode.videoPath;
-                                            }).length == 0) {
+                                            }).length === 0) {
                                             stopTorrentWatcher();
                                         }
 
@@ -402,7 +423,13 @@ function watchTorrents() {
                                             if (videoFile) {
                                                 // On le déplace dans DLNA si on est le serveur transmission
                                                 if (config.isTransmissionServer) {
-                                                    fs.rename(videoFullPath, `${config.dlnaDir}/${videoFileName}`, (err) => {
+                                                    // Classé par nom de série et saison
+                                                    let dir = `${config.dlnaDir}/${episodes[epiIndex].series}/S${episodes[epiIndex].season}`;
+                                                    if (!fs.existsSync(dir)){
+                                                        fs.mkdirSync(dir, { recursive: true });
+                                                    }
+
+                                                    fs.rename(videoFullPath, `${dir}/${videoFileName}`, (err) => {
                                                         if (!err) {
                                                             console.log(`fichier ${videoFileName} déplacé dans dlna`);
                                                         } else {
@@ -454,12 +481,18 @@ function findEpisodeSubtitles() {
                                     episodes[index].subs = subtitles.en.url;
 
                                     request(subtitles.en.url, function (error, response, fileContent) {
-                                        if (!error && response.statusCode == 200) {
+                                        if (!error && response.statusCode === 200) {
                                             var splittedVideoName = episodes[index].videoFileName.split('.');
                                             splittedVideoName[splittedVideoName.length - 1] = "srt";
                                             var subFile = splittedVideoName.join('.');
                                             if (config.isTransmissionServer) {
-                                                var file = fs.createWriteStream(`${config.dlnaDir}/${subFile}`);
+                                                // Classé par nom de série et saison
+                                                let dir = `${config.dlnaDir}/${episodes[index].series}/S${episodes[index].season}`;
+                                                if (!fs.existsSync(dir)){
+                                                    fs.mkdirSync(dir, { recursive: true });
+                                                }
+
+                                                var file = fs.createWriteStream(`${dir}/${subFile}`);
                                                 file.write(fileContent, () => {
                                                     file.close();
                                                 });
@@ -491,7 +524,7 @@ function findEpisodeSubtitles() {
                     var toDestroyIndexes = [];
                     results.forEach((result, index) => {
                         console.log(`Promesse n°${index}, résultat ${result.state}, valeur ${result.value}`);
-                        if (result.state == "fulfilled") {
+                        if (result.state === "fulfilled") {
                             toDestroyIndexes.push(result.value);
                         }
                     });
@@ -507,7 +540,7 @@ function findEpisodeSubtitles() {
 
                         saveEpisodes();
 
-                        if (episodes.length == 0) {
+                        if (episodes.length === 0) {
                             stopSubFinder();
                         }
                     }
@@ -605,14 +638,15 @@ function getVideoFilePath(torrent) {
     }
 }
 
-function logAndConvertEpisodeForDL(tvDbEpisode) {
+function logAndConvertEpisodeForDL(tvDbEpisode, options) {
     let episode = {
         "series": getSeriesName(tvDbEpisode.seriesid),
+        "options": options,
         "name": tvDbEpisode.EpisodeName,
-        "season": tvDbEpisode.SeasonNumber.length == 1 ? `0${tvDbEpisode.SeasonNumber}` : tvDbEpisode.SeasonNumber,
-        "number": tvDbEpisode.EpisodeNumber.length == 1 ? `0${tvDbEpisode.EpisodeNumber}` : tvDbEpisode.EpisodeNumber
+        "season": tvDbEpisode.SeasonNumber.length === 1 ? `0${tvDbEpisode.SeasonNumber}` : tvDbEpisode.SeasonNumber,
+        "number": tvDbEpisode.EpisodeNumber.length === 1 ? `0${tvDbEpisode.EpisodeNumber}` : tvDbEpisode.EpisodeNumber
     };
-    console.log(`${episode.series}, épisode diffusé hier : ${episode.name} (S${episode.season}E${episode.number})`);
+    console.log(`${episode.series}, épisode diffusé hier : ${episode.name} (S${episode.season}E${episode.number}) [${options}]`);
 
     return episode;
 }
