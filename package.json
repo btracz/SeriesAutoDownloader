@@ -15,7 +15,7 @@
     "ejs": "^2.7.4",
     "express": "^4.17.1",
     "http-proxy-middleware": "^1.0.5",
-    "moment": "^2.29.0",
+    "moment": "^2.29.4",
     "morgan": "^1.9.1",
     "node-tvdb": "^2.0.18",
     "opensubtitles-api": "^4.1.0",
